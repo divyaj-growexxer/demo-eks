@@ -1,0 +1,69 @@
+
+
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo Installing dependencies...
+      - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.29.0/2023-11-14/bin/linux/amd64/aws-iam-authenticator
+      - chmod +x ./aws-iam-authenticator
+      - mv ./aws-iam-authenticator /usr/local/bin/
+      - echo Installing Helm...
+      - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+      - echo Logging in to Amazon EKS...
+      - aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+      - kubectl get nodes
+
+  pre_build:
+    commands:
+      - echo Checking kubectl context...
+      - kubectl version --short
+      - kubectl get nodes
+
+  build:
+    commands:
+      - echo Applying Deploying Helm Chart
+      ## using the IMAGE PATH and IMAGE PLACEHOLDER to get the latest image from repository
+      - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].[registryId, repositoryName, imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
+      - echo Using image $IMAGE_PATH
+      - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values.yaml
+      - |
+        if ! kubectl get ns dev > /dev/null 2>&1; then
+          echo "Creating dev namespace with Helm labels/annotations..."
+          kubectl create namespace dev
+          kubectl label namespace dev app.kubernetes.io/managed-by=Helm --overwrite
+          kubectl annotate namespace dev meta.helm.sh/release-name=eks-app-dev meta.helm.sh/release-namespace=dev --overwrite
+        else
+          echo "Namespace dev already exists. Skipping creation..."
+        fi
+      - helm upgrade --install eks-app-dev ./helm --namespace dev --wait || true
+      
+
+  post_build:
+    commands:
+      - |
+        namespace="dev"
+        releasename="eks-app-dev"
+        echo "Checking deployment status..."
+        echo "Checking if all pods are running and ready..."
+        ALL_READY=$(kubectl get pods -n $namespace -l app=$releasename -o json | jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' | awk '{ if ($2 != "true") exit 1 }')
+
+        if [ $? -ne 0 ]; then
+          echo "❌ Not all pods are ready. Starting rollback..."
+
+          LAST_SUCCESSFUL_REVISION=$(helm history $releasename --namespace $namespace | grep "deployed" | head -n 2 | tail -n 1 | awk '{print $1}')
+          
+          if [ -z "$LAST_SUCCESSFUL_REVISION" ]; then
+            echo "No previous successful revision found. Cannot rollback."
+            exit 1
+          fi
+
+          echo "Rolling back to revision $LAST_SUCCESSFUL_REVISION..."
+          helm rollback $releasename $LAST_SUCCESSFUL_REVISION --namespace $namespace --wait
+
+          echo "✅ Rollback completed Sucessfully."
+        else
+          echo "✅ All pods are running and ready. Helm Deployment successful."
+        fi
+        
