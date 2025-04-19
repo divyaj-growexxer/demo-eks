@@ -5,9 +5,8 @@ metadata:
   namespace: {{ .Values.namespace }}
 spec:
   selector:
-    app: my-app
-    color: {{ .Values.service.selector }}
+    app: eks-app
+    version: {{ .Values.service.selector }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
-      protocol: TCP
