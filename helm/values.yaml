@@ -1,0 +1,27 @@
+namespace: dev
+
+image:
+  repository: 276445149463.dkr.ecr.us-east-1.amazonaws.com/eks-app-ecr/latest
+  tagBlue: "1.0.0"
+  tagGreen: "1.0.1"
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+service:
+  name: my-app-svc
+  port: 80
+  targetPort: 8501
+  selector: blue # or green
+
+ingress:
+  enabled: true
+  className: nginx
+  host:
+  path: /
