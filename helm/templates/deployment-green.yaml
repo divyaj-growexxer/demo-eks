@@ -1,23 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-app-green
+  name: eks-app-{{ .Values.service.selector }}
   namespace: {{ .Values.namespace }}
+  labels:
+    app: eks-app
+    version: {{ .Values.service.selector }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: my-app
-      color: green
+      app: eks-app
+      version: {{ .Values.service.selector }}
   template:
     metadata:
       labels:
-        app: my-app
-        color: green
+        app: eks-app
+        version: {{ .Values.service.selector }}
     spec:
       containers:
-        - name: my-app
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tagGreen }}"
+        - name: eks-app
+          image: "{{ .Values.image.imageName }}:{{ if eq .Values.service.selector \"blue\" }}{{ .Values.image.tagBlue }}{{ else }}{{ .Values.image.tagGreen }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 8501
+            - containerPort: {{ .Values.service.targetPort }}
