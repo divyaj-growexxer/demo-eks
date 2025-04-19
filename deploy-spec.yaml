@@ -3,52 +3,52 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo Installing dependencies...
+      - echo "Installing dependencies..."
       - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.29.0/2023-11-14/bin/linux/amd64/aws-iam-authenticator
       - chmod +x ./aws-iam-authenticator
       - mv ./aws-iam-authenticator /usr/local/bin/
-      - echo Installing Helm...
+      - echo "Installing Helm..."
       - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-      - echo Logging in to Amazon EKS...
+      - echo "Logging in to Amazon EKS..."
       - aws eks update-kubeconfig --region us-east-1 --name eks-cluster
       - kubectl get nodes
 
   pre_build:
     commands:
-      - echo Checking kubectl context...
+      - echo "Checking kubectl context..."
       - kubectl version --short
       - kubectl get nodes
 
   build:
     commands:
       - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,&imagePushedAt)[-1].[registryId,repositoryName,imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
-    - echo Using image $IMAGE_PATH
-    - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
-    - |
-      if [ "$CURRENT_COLOR" = "blue" ]; then
-        NEW_COLOR="green"
-      else
-        NEW_COLOR="blue"
-      fi
-      echo "Deploying new color: $NEW_COLOR"
-      export NEW_COLOR=$NEW_COLOR
-    - |
-      if [ ! -f helm/values-$NEW_COLOR.yaml ]; then
-        echo "❌ File helm/values-$NEW_COLOR.yaml not found. Creating from template."
-        cp helm/values-template.yaml helm/values-$NEW_COLOR.yaml
-      fi
-    - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
-    - |
-      if ! kubectl get ns dev > /dev/null 2>&1; then
-        kubectl create namespace dev
-      else
-        echo "Namespace creation skipping..."
-      fi
-    - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
+      - echo "Using image $IMAGE_PATH"
+      - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
+      - |
+        if [ "$CURRENT_COLOR" = "blue" ]; then
+          NEW_COLOR="green"
+        else
+          NEW_COLOR="blue"
+        fi
+        echo "Deploying new color: $NEW_COLOR"
+        export NEW_COLOR=$NEW_COLOR
+      - |
+        if [ ! -f helm/values-$NEW_COLOR.yaml ]; then
+          echo "❌ File helm/values-$NEW_COLOR.yaml not found. Creating from template."
+          cp helm/values-template.yaml helm/values-$NEW_COLOR.yaml
+        fi
+      - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
+      - |
+        if ! kubectl get ns dev > /dev/null 2>&1; then
+          kubectl create namespace dev
+        else
+          echo "Namespace creation skipping..."
+        fi
+      - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
     
-post_build:
+  post_build:
     commands:
-      - echo Checking pod status for new version $NEW_COLOR
+      - echo "Checking pod status for new version $NEW_COLOR"
       - >
         NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json | \
         jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv')
