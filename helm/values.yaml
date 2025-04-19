@@ -1,7 +1,7 @@
 namespace: dev
 
 image:
-  repository: 276445149463.dkr.ecr.us-east-1.amazonaws.com/eks-app-ecr/latest
+  image: IMAGE_PLACEHOLDER
   tagBlue: "1.0.0"
   tagGreen: "1.0.1"
   pullPolicy: IfNotPresent
