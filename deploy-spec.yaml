@@ -4,6 +4,7 @@ phases:
   install:
     commands:
      - echo Installing dependencies...
+     - yum install -y jq
      - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.29.0/2023-11-14/bin/linux/amd64/aws-iam-authenticator
      - chmod +x ./aws-iam-authenticator
      - mv ./aws-iam-authenticator /usr/local/bin/
@@ -44,8 +45,12 @@ phases:
         else
           echo "Namespace creation skipping..."
         fi
+      # 🧼 Clean up conflicting Helm metadata annotations
+      - |
+        kubectl annotate namespace dev meta.helm.sh/release-name- meta.helm.sh/release-namespace- || true
+        kubectl label namespace dev app.kubernetes.io/managed-by- || true
       - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
-    
+
   post_build:
     commands:
       - echo "Checking pod status for new version $NEW_COLOR"
@@ -54,13 +59,11 @@ phases:
         jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv')
         echo "Pods status output: $NEW_PODS_READY"
 
-        # Check if pods output is empty
         if [[ -z "$NEW_PODS_READY" ]]; then
           echo "❌ Failed to retrieve pod status."
           exit 1
         fi
 
-        # Validate pod readiness
         echo "$NEW_PODS_READY" | awk '{ if ($2 != "true") exit 1 }'
         if [ $? -ne 0 ]; then
           echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR"
