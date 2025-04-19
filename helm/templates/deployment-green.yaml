@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: eks-app
-          image: "{{ .Values.image.imageName }}:{{ if eq .Values.service.selector \"blue\" }}{{ .Values.image.tagBlue }}{{ else }}{{ .Values.image.tagGreen }}{{ end }}"
+          image: "{{ .Values.image.imageName }}:{{ ternary .Values.image.tagBlue .Values.image.tagGreen (eq .Values.service.selector "blue") }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
