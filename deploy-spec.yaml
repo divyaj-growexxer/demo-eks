@@ -23,7 +23,7 @@ phases:
     commands:
       # Get latest image from ECR
       - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].[registryId, repositoryName, imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
-      - echo Using image: $IMAGE_PATH
+      - echo Using image $IMAGE_PATH
 
       # Decide active color
       - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
@@ -46,13 +46,17 @@ phases:
   post_build:
     commands:
       - echo "Checking pod status for new version: $NEW_COLOR"
-      - |
-        NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json | jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' | awk '{ if ($2 != "true") exit 1 }')
-
+        post_build:
+    commands:
+      - echo "Checking pod status for new version: $NEW_COLOR"
+      - >
+        NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json |
+        jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' |
+        awk '{ if ($2 != "true") exit 1 }');
         if [ $? -ne 0 ]; then
-          echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR"
-          exit 1
+          echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR";
+          exit 1;
         else
-          echo "✅ New pods ready. Switching service to $NEW_COLOR"
-          kubectl patch svc eks-app-service -n dev -p "{\"spec\": {\"selector\": {\"app\": \"eks-app\", \"version\": \"$NEW_COLOR\"}}}"
+          echo "✅ New pods ready. Switching service to $NEW_COLOR";
+          kubectl patch svc eks-app-service -n dev -p "{\"spec\": {\"selector\": {\"app\": \"eks-app\", \"version\": \"$NEW_COLOR\"}}}";
         fi
