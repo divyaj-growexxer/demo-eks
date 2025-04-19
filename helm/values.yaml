@@ -15,7 +15,7 @@ hpa:
   targetCPUUtilizationPercentage: 70
 
 service:
-  name: my-app-svc
+  name: nginx
   port: 80
   targetPort: 8501
   selector: blue # or green
