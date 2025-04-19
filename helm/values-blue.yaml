@@ -1,7 +1,0 @@
-
-replicaCount: 2
-color: blue
-image:
-  repository: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/myapp
-  tag: blue
-containerPort: 8501
