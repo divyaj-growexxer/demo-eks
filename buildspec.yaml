@@ -1,0 +1,60 @@
+
+version: 0.2
+environment_variables:
+  plaintext:
+    S3_BUCKET: "eks-app-artifact-bucket"
+    repository_url: "276445149463.dkr.ecr.us-east-1.amazonaws.com/eks-app-ecr"
+    #projectKey: "blur-detection"
+    #projctVersion: "main"
+    #projectName: "blur-detection"
+#env:
+  #parameter-store:
+#   GITHUB_TOKEN: "GITHUB_TOKEN"
+    #SONAR_TOKEN: "SONAR_TOKEN"
+    #SONAR_HOST: "SONAR_HOST"
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+
+  pre_build:
+    commands:
+      - echo `aws --version`
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 276445149463.dkr.ecr.us-east-1.amazonaws.com
+      - REPOSITORY_URI=276445149463.dkr.ecr.us-east-1.amazonaws.com/eks-app-ecr
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - echo Entered the pre_build phase...
+      #- aws s3 cp s3://streamlit-divya-dev-api-cluster-artifacts/config/development.env .
+    #  - aws s3 cp s3://streamlit-divya-dev-api-cluster-artifacts/config/sonar-scanner.properties .
+     # - aws s3 cp s3://simplymusic-dev-services-cluster-artifacts/config/testing.env .
+  build: 
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image..
+      # - npm install
+      # - npm test 
+      # - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.2.0.1227-linux.zip
+      # - unzip sonar-scanner-cli-3.2.0.1227-linux.zip
+      # - ./sonar-scanner-3.2.0.1227-linux/bin/sonar-scanner -Dsonar.host.url=$SONAR_HOST -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey=$projectKey -Dsonar.projectVersion=$projectVersion
+      # - rm -rf node_modules
+      #- docker build -f dockerfile -t $REPOSITORY_URI:latest .
+      #- docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+      - docker build -t $REPOSITORY_URI:latest .
+      - echo "Listing Docker images for verification..."
+      - docker images
+      - echo "Tagging image with commit hash..."
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+     commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker images
+      - if [[ "$(docker images -q $REPOSITORY_URI:$IMAGE_TAG 2> /dev/null)" == "" ]]; then echo "Docker image not found! Build failed."; exit 1; fi
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+      #- printf '[{"name":"node-service-task","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+
+#artifacts:
+  #files: imagedefinitions.json
