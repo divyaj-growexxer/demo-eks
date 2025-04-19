@@ -21,14 +21,14 @@ phases:
 
   build:
     commands:
-      - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].[registryId, repositoryName, imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
+      - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,&imagePushedAt)[-1].[registryId,repositoryName,imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
       - echo Using image $IMAGE_PATH
       - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
-      - >
+      - |
         if [ "$CURRENT_COLOR" = "blue" ]; then
-          NEW_COLOR="green";
+          NEW_COLOR="green"
         else
-          NEW_COLOR="blue";
+          NEW_COLOR="blue"
         fi
         echo "Deploying new color: $NEW_COLOR"
         export NEW_COLOR=$NEW_COLOR
@@ -44,12 +44,17 @@ phases:
       - echo Checking pod status for new version $NEW_COLOR
       - >
         NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json |
-        jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' |
-        awk '{ if ($2 != "true") exit 1 }');
+        jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv')
+        echo "Pods status output: $NEW_PODS_READY"
+        if [[ -z "$NEW_PODS_READY" ]]; then
+          echo "❌ Failed to retrieve pod status."
+          exit 1
+        fi
+        echo "$NEW_PODS_READY" | awk '{ if ($2 != "true") exit 1 }'
         if [ $? -ne 0 ]; then
-          echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR";
-          exit 1;
+          echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR"
+          exit 1
         else
-          echo "✅ New pods ready. Switching service to $NEW_COLOR";
-          kubectl patch svc eks-app-service -n dev -p "{\"spec\": {\"selector\": {\"app\": \"eks-app\", \"version\": \"$NEW_COLOR\"}}}";
+          echo "✅ New pods ready. Switching service to $NEW_COLOR"
+          kubectl patch svc eks-app-service -n dev -p "{\"spec\": {\"selector\": {\"app\": \"eks-app\", \"version\": \"$NEW_COLOR\"}}}"
         fi
