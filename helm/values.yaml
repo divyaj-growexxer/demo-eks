@@ -1,7 +1,7 @@
 namespace: dev
 
 image:
-  image: IMAGE_PLACEHOLDER
+  imageName: IMAGE_PLACEHOLDER
   tagBlue: "1.0.0"
   tagGreen: "1.0.1"
   pullPolicy: IfNotPresent
