@@ -35,7 +35,7 @@ phases:
       - |
         if [ ! -f helm/values-$NEW_COLOR.yaml ]; then
           echo "❌ File helm/values-$NEW_COLOR.yaml not found. Creating from template."
-          cp helm/values-template.yaml helm/values-$NEW_COLOR.yaml
+          cp helm/values.yaml helm/values-$NEW_COLOR.yaml
         fi
       - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
       - |
