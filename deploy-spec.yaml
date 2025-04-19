@@ -31,20 +31,14 @@ phases:
           NEW_COLOR="blue";
         fi
         echo "Deploying new color: $NEW_COLOR"
-        export NEW_COLOR
-
-      # Update Helm values
+        export NEW_COLOR=$NEW_COLOR
       - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
-
-      # Ensure namespace exists
       - |
         if ! kubectl get ns dev > /dev/null 2>&1; then
           kubectl create namespace dev
         fi
-
-      # Deploy new version with Helm
       - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
-
+      
   post_build:
     commands:
       - echo "Checking pod status for new version: $NEW_COLOR"
