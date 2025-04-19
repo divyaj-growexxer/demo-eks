@@ -20,4 +20,4 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tagGreen }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 8080
+            - containerPort: 8501
