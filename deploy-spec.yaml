@@ -38,13 +38,10 @@ phases:
           kubectl create namespace dev
         fi
       - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
-      
+
   post_build:
     commands:
-      - echo "Checking pod status for new version: $NEW_COLOR"
-        post_build:
-    commands:
-      - echo "Checking pod status for new version: $NEW_COLOR"
+      - echo Checking pod status for new version: $NEW_COLOR
       - >
         NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json |
         jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' |
