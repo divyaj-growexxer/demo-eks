@@ -22,25 +22,30 @@ phases:
   build:
     commands:
       - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,&imagePushedAt)[-1].[registryId,repositoryName,imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
-      - echo Using image $IMAGE_PATH
-      - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
-      - |
-        if [ "$CURRENT_COLOR" = "blue" ]; then
-          NEW_COLOR="green"
-        else
-          NEW_COLOR="blue"
-        fi
-        echo "Deploying new color: $NEW_COLOR"
-        export NEW_COLOR=$NEW_COLOR
-      - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
-      - |
-        if ! kubectl get ns dev > /dev/null 2>&1; then
-          kubectl create namespace dev
-        else
-          echo "NAmespace creation skipping .."
-        fi
-      - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
-
+    - echo Using image $IMAGE_PATH
+    - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
+    - |
+      if [ "$CURRENT_COLOR" = "blue" ]; then
+        NEW_COLOR="green"
+      else
+        NEW_COLOR="blue"
+      fi
+      echo "Deploying new color: $NEW_COLOR"
+      export NEW_COLOR=$NEW_COLOR
+    - |
+      if [ ! -f helm/values-$NEW_COLOR.yaml ]; then
+        echo "❌ File helm/values-$NEW_COLOR.yaml not found. Creating from template."
+        cp helm/values-template.yaml helm/values-$NEW_COLOR.yaml
+      fi
+    - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
+    - |
+      if ! kubectl get ns dev > /dev/null 2>&1; then
+        kubectl create namespace dev
+      else
+        echo "Namespace creation skipping..."
+      fi
+    - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
+    
 post_build:
     commands:
       - echo Checking pod status for new version $NEW_COLOR
