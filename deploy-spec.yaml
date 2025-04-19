@@ -1,5 +1,3 @@
-
-
 version: 0.2
 
 phases:
@@ -23,47 +21,37 @@ phases:
 
   build:
     commands:
-      - echo Applying Deploying Helm Chart
-      ## using the IMAGE PATH and IMAGE PLACEHOLDER to get the latest image from repository
+      # Get latest image from ECR
       - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].[registryId, repositoryName, imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
-      - echo Using image $IMAGE_PATH
-      - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values.yaml
+      - echo Using image: $IMAGE_PATH
+
+      # Decide active color
+      - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
+      - echo "Current active color: $CURRENT_COLOR"
+      - if [ "$CURRENT_COLOR" = "blue" ]; then NEW_COLOR="green"; else NEW_COLOR="blue"; fi
+      - echo "Deploying new color: $NEW_COLOR"
+
+      # Update Helm values
+      - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
+
+      # Ensure namespace exists
       - |
         if ! kubectl get ns dev > /dev/null 2>&1; then
-          echo "Creating dev namespace with Helm labels/annotations..."
           kubectl create namespace dev
-          kubectl label namespace dev app.kubernetes.io/managed-by=Helm --overwrite
-          kubectl annotate namespace dev meta.helm.sh/release-name=eks-app-dev meta.helm.sh/release-namespace=dev --overwrite
-        else
-          echo "Namespace dev already exists. Skipping creation..."
         fi
-      - helm upgrade --install eks-app-dev ./helm --namespace dev --wait || true
-      
+
+      # Deploy new version with Helm
+      - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
 
   post_build:
     commands:
-      - |
-        namespace="dev"
-        releasename="eks-app-dev"
-        echo "Checking deployment status..."
-        echo "Checking if all pods are running and ready..."
-        ALL_READY=$(kubectl get pods -n $namespace -l app=$releasename -o json | jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' | awk '{ if ($2 != "true") exit 1 }')
+      - echo "Checking pod status for new version: $NEW_COLOR"
+      - NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json | jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv' | awk '{ if ($2 != "true") exit 1 }')
 
-        if [ $? -ne 0 ]; then
-          echo "❌ Not all pods are ready. Starting rollback..."
-
-          LAST_SUCCESSFUL_REVISION=$(helm history $releasename --namespace $namespace | grep "deployed" | head -n 2 | tail -n 1 | awk '{print $1}')
-          
-          if [ -z "$LAST_SUCCESSFUL_REVISION" ]; then
-            echo "No previous successful revision found. Cannot rollback."
-            exit 1
-          fi
-
-          echo "Rolling back to revision $LAST_SUCCESSFUL_REVISION..."
-          helm rollback $releasename $LAST_SUCCESSFUL_REVISION --namespace $namespace --wait
-
-          echo "✅ Rollback completed Sucessfully."
+      - if [ $? -ne 0 ]; then
+          echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR";
+          exit 1;
         else
-          echo "✅ All pods are running and ready. Helm Deployment successful."
+          echo "✅ New pods ready. Switching service to $NEW_COLOR";
+          kubectl patch svc eks-app-service -n dev -p "{\"spec\": {\"selector\": {\"app\": \"eks-app\", \"version\": \"$NEW_COLOR\"}}}";
         fi
-        
