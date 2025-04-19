@@ -21,15 +21,17 @@ phases:
 
   build:
     commands:
-      # Get latest image from ECR
       - IMAGE_PATH=$(aws ecr describe-images --repository-name eks-app-ecr --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].[registryId, repositoryName, imageTags[0]]" --output text | awk '{print $1".dkr.ecr.us-east-1.amazonaws.com/"$2":"$3}')
       - echo Using image $IMAGE_PATH
-
-      # Decide active color
       - CURRENT_COLOR=$(kubectl get svc eks-app-service -n dev -o jsonpath='{.spec.selector.version}' || echo "none")
-      - echo "Current active color: $CURRENT_COLOR"
-      - if [ "$CURRENT_COLOR" = "blue" ]; then NEW_COLOR="green"; else NEW_COLOR="blue"; fi
-      - echo "Deploying new color: $NEW_COLOR"
+      - >
+        if [ "$CURRENT_COLOR" = "blue" ]; then
+          NEW_COLOR="green";
+        else
+          NEW_COLOR="blue";
+        fi
+        echo "Deploying new color: $NEW_COLOR"
+        export NEW_COLOR
 
       # Update Helm values
       - sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|" helm/values-$NEW_COLOR.yaml
