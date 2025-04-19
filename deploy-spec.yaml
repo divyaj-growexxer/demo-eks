@@ -36,20 +36,26 @@ phases:
       - |
         if ! kubectl get ns dev > /dev/null 2>&1; then
           kubectl create namespace dev
+        else
+          echo "NAmespace creation skipping .."
         fi
       - helm upgrade --install eks-app-$NEW_COLOR ./helm -f helm/values-$NEW_COLOR.yaml --namespace dev --wait
 
-  post_build:
+post_build:
     commands:
       - echo Checking pod status for new version $NEW_COLOR
       - >
-        NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json |
+        NEW_PODS_READY=$(kubectl get pods -n dev -l app=eks-app,version=$NEW_COLOR -o json | \
         jq -r '.items[] | [.metadata.name, (.status.containerStatuses[]?.ready | tostring)] | @tsv')
         echo "Pods status output: $NEW_PODS_READY"
+
+        # Check if pods output is empty
         if [[ -z "$NEW_PODS_READY" ]]; then
           echo "❌ Failed to retrieve pod status."
           exit 1
         fi
+
+        # Validate pod readiness
         echo "$NEW_PODS_READY" | awk '{ if ($2 != "true") exit 1 }'
         if [ $? -ne 0 ]; then
           echo "❌ New pods not ready. Keeping current version: $CURRENT_COLOR"
