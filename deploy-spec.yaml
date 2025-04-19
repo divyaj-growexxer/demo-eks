@@ -3,15 +3,17 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "Installing dependencies..."
-      - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.29.0/2023-11-14/bin/linux/amd64/aws-iam-authenticator
-      - chmod +x ./aws-iam-authenticator
-      - mv ./aws-iam-authenticator /usr/local/bin/
-      - echo "Installing Helm..."
-      - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-      - echo "Logging in to Amazon EKS..."
-      - aws eks update-kubeconfig --region us-east-1 --name eks-cluster
-      - kubectl get nodes
+     - echo Installing dependencies...
+     - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.29.0/2023-11-14/bin/linux/amd64/aws-iam-authenticator
+     - chmod +x ./aws-iam-authenticator
+     - mv ./aws-iam-authenticator /usr/local/bin/
+     - echo Installing Helm...
+     - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+     - echo Installing jq...
+     - yum install -y jq
+     - echo Logging in to Amazon EKS...
+     - aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+     - kubectl get nodes
 
   pre_build:
     commands:
